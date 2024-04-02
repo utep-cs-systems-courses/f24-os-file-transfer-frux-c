@@ -1,31 +1,39 @@
+# !/usr/bin/env python3
+# Description: FTP server that listens on a given port and saves files sent by clients
 import socket
 import os
 import time
+from lib.framer import OutbandFramer
 
 class FTPSockerServer:
+
     CLIENT_PIDS = dict()
+    
     class ClientHandler:
         def __init__(self, conn, addr, read_size=1024):
             self.conn = conn
             self.addr = addr
             self.read_size = read_size
-            # add to set of clients
-            FTPSockerServer.CLIENT_PIDS[os.getpid()] = -1
         
         def handle(self):            
             retry = 3
+            data = b''
             while True:
-                data = self.conn.recv(self.read_size).decode().strip()
-                if not data:
+                incoming_data = self.conn.recv(self.read_size)
+                if not incoming_data:
                     if retry > 0:
-                        time.sleep(1)
                         retry -= 1
                         continue
                     break
-                print(f"Received data from {self.addr[0]}:{self.addr[1]}: {data}")
+                data += incoming_data
+            fname_n_data = OutbandFramer(1024, 64, b'\\').unframe_data(data)
+            for fname, fdata in fname_n_data:
+                print("Received file:", fname)
+                fd = os.open(fname, os.O_CREAT | os.O_WRONLY)
+                os.write(fd, fdata)
+                os.close(fd)
             self.conn.close()
             print(f"Connection from {self.addr[0]}:{self.addr[1]} closed")
-            FTPSockerServer.CLIENT_PIDS[os.getpid()] = 0
             os._exit(0)
             # TODO : decode data and save to file
 
@@ -33,19 +41,22 @@ class FTPSockerServer:
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.running = True
     
     def start(self):
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(1)
         print(f"FTP server listening on {self.host}:{self.port}")
-        while True:
+
+        while self.running:
             conn, addr = self.server_socket.accept()
             print(f"Accepted connection from {addr[0]}:{addr[1]}")
             pid = os.fork()
             if pid == 0:
                 client_handler = self.ClientHandler(conn, addr)
                 client_handler.handle()
-    
+            
+
     def stop(self):
         # currently not used
         self.server_socket.close()
