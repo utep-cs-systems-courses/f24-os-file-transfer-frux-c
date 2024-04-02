@@ -26,16 +26,20 @@ class FTPSockerServer:
                         continue
                     break
                 data += incoming_data
-            fname_n_data = OutbandFramer(1024, 64, b'\\').unframe_data(data)
-            for fname, fdata in fname_n_data:
-                print("Received file:", fname)
-                fd = os.open(fname, os.O_CREAT | os.O_WRONLY)
-                os.write(fd, fdata)
-                os.close(fd)
-            self.conn.close()
-            print(f"Connection from {self.addr[0]}:{self.addr[1]} closed")
+            try:
+                fname_n_data = OutbandFramer(1024, 64, b'\\').unframe_data(data)
+                for fname, fdata in fname_n_data:
+                    print("Received file:", fname)
+                    fd = os.open(fname, os.O_CREAT | os.O_WRONLY)
+                    os.write(fd, fdata)
+                    os.close(fd)
+            except Exception as e:
+                print(f"Error: {e}")
+                self.conn.close()
+                self.conn.shutdown(socket.SHUT_RDWR)
+                print(f"Connection from {self.addr[0]}:{self.addr[1]} closed")
+                os._exit(1)
             os._exit(0)
-            # TODO : decode data and save to file
 
     def __init__(self, host, port):
         self.host = host
