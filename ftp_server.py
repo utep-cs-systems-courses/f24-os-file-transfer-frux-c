@@ -39,6 +39,7 @@ class FTPSockerServer:
                 self.conn.shutdown(socket.SHUT_RDWR)
                 print(f"Connection from {self.addr[0]}:{self.addr[1]} closed")
                 os._exit(1)
+            print(f"Connection from {self.addr[0]}:{self.addr[1]} closed")
             os._exit(0)
 
     def __init__(self, host, port):
